@@ -19,7 +19,6 @@ const feeds = [
   "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml",
   "https://rss.nytimes.com/services/xml/rss/nyt/MiddleEast.xml",
   "https://feeds.bbci.co.uk/news/world/rss.xml",
-  "https://rss.cnn.com/rss/edition.rss",
   "https://www.aljazeera.com/xml/rss/all.xml",
   "https://www.theguardian.com/world/rss",
   "https://rss.dw.com/xml/rss-en-all"
