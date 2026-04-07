@@ -20,6 +20,7 @@ const feeds = [
   "https://rss.nytimes.com/services/xml/rss/nyt/MiddleEast.xml",
   "https://feeds.bbci.co.uk/news/world/rss.xml",
   "https://www.aljazeera.com/xml/rss/all.xml",
+  "https://www.aljazeera.com/xml/rss/middleeast.xml",
   "https://www.theguardian.com/world/rss",
   "https://rss.dw.com/xml/rss-en-all"
 ];
