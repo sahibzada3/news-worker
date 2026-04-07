@@ -8,7 +8,7 @@ const parser = new Parser({
   timeout: 20000
 });
 
-// Supabase
+// Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
@@ -32,18 +32,19 @@ async function fetchNews() {
     try {
       const feed = await parser.parseURL(url);
 
-      console.log(`✅ Feed loaded: ${url} | Items: ${feed.items?.length || 0}`);
+      const items = feed?.items || [];
 
-      const items = feed.items || [];
+      console.log(`✅ Feed loaded: ${url} | Items: ${items.length}`);
 
       for (const item of items) {
         try {
           const title = item.title || "";
-          const summary = item.contentSnippet || "";
-          const link = item.link || "";
-          const pubDate = item.pubDate || new Date().toISOString();
+          const summary = item.contentSnippet || item.summary || "";
+          const link = item.link;
 
           if (!link) continue;
+
+          const pubDate = item.pubDate || new Date().toISOString();
 
           console.log("🟡 Processing:", title);
 
@@ -57,7 +58,9 @@ async function fetchNews() {
                 source: url,
                 timestamp: new Date(pubDate)
               },
-              { onConflict: "link" }
+              {
+                onConflict: "link"
+              }
             );
 
           if (error) {
