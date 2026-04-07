@@ -24,43 +24,9 @@ const feeds = [
   "https://rss.dw.com/xml/rss-en-all"
 ];
 
-// Prevent duplicates in runtime
+// Prevent duplicates
 const seen = new Set();
 
-// OPTIONAL: freshness filter (can adjust or disable)
-function isFresh(pubDate) {
-  if (!pubDate) return true;
-  const diff = (Date.now() - new Date(pubDate)) / 60000;
-  return diff <= 180; // 3 hours (less strict = more news)
-}
-
-// Keyword filter
-function isRelevant(text) {
-  const keywords = [
-    "war","attack","airstrike","missile","drone","explosion",
-    "bomb","military","invasion","battle","conflict",
-    "gaza","israel","iran","syria","hamas","hezbollah"
-  ];
-
-  text = text.toLowerCase();
-  return keywords.some(k => text.includes(k));
-}
-
-// Score system
-function getScore(text) {
-  const high = ["war","missile","airstrike","explosion","invasion"];
-  const mid = ["attack","drone","military","battle","strike"];
-
-  let score = 0;
-  text = text.toLowerCase();
-
-  high.forEach(w => { if (text.includes(w)) score += 5; });
-  mid.forEach(w => { if (text.includes(w)) score += 2; });
-
-  return score;
-}
-
-// FETCH NEWS
 async function fetchNews() {
   console.log("\n🔄 Scanning feeds...");
 
@@ -74,20 +40,13 @@ async function fetchNews() {
         const title = item.title || "";
         const summary = item.contentSnippet || "";
         const link = item.link || "";
-        const pubDate = item.pubDate;
+        const pubDate = item.pubDate || new Date().toISOString();
 
         const key = item.guid || link || title;
 
+        // prevent duplicates only
         if (seen.has(key)) continue;
         seen.add(key);
-
-        const text = `${title} ${summary}`;
-
-        // (TEMP SAFER MODE - NOT TOO STRICT)
-        if (!isFresh(pubDate)) continue;
-        if (!isRelevant(text)) continue;
-
-        const score = getScore(text);
 
         const { error } = await supabase
           .from("news")
@@ -97,9 +56,7 @@ async function fetchNews() {
               summary,
               link,
               source: url,
-              timestamp: pubDate ? new Date(pubDate) : new Date(),
-              category: score >= 6 ? "live" : "recent",
-              score
+              timestamp: new Date(pubDate)
             },
             { onConflict: "link" }
           );
