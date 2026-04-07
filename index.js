@@ -25,6 +25,9 @@ const feeds = [
 const seen = new Set();
 
 async function fetchNews() {
+  console.log("RAW ITEMS TYPE:", typeof feed.items);
+console.log("ITEMS LENGTH:", feed.items?.length);
+console.log("FIRST ITEM:", feed.items?.[0]);
   console.log("\n🔄 Scanning feeds...");
 console.log("TEST LOOP ACTIVE");
   for (const url of feeds) {
