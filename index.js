@@ -8,7 +8,7 @@ const parser = new Parser({
   timeout: 20000
 });
 
-// Supabase client (Railway ENV)
+// Supabase client
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
@@ -24,25 +24,26 @@ const feeds = [
   "https://rss.dw.com/xml/rss-en-all"
 ];
 
-// ⏱ ONLY KEEP NEWS FROM LAST 60 MINUTES
+// ⏱ KEEP NEWS FROM LAST 3 HOURS (IMPORTANT FIX)
 function isFresh(pubDate) {
   const diff = (Date.now() - new Date(pubDate)) / 60000;
-  return diff <= 60;
+  return diff <= 180;
 }
 
-// 🎯 KEYWORD FILTER (balanced, not too strict)
+// 🎯 RELAXED FILTER (important fix)
 function isRelevant(text) {
   const keywords = [
     "war","attack","strike","missile","drone","explosion",
     "military","conflict","invasion","battle",
-    "gaza","israel","iran","ukraine","russia","syria"
+    "gaza","israel","iran","ukraine","russia","syria",
+    "ceasefire","troops","defense","army"
   ];
 
   text = text.toLowerCase();
   return keywords.some(k => text.includes(k));
 }
 
-// 📊 SCORING SYSTEM
+// 📊 SCORING
 function getScore(text) {
   const high = ["war","missile","airstrike","invasion","explosion"];
   const mid = ["attack","drone","strike","military","battle"];
@@ -56,7 +57,7 @@ function getScore(text) {
   return score;
 }
 
-// MAIN FETCH FUNCTION
+// MAIN FETCH
 async function fetchNews() {
   console.log("\n🔄 Scanning feeds...");
 
@@ -77,15 +78,15 @@ async function fetchNews() {
 
           const pubDate = item.pubDate || new Date().toISOString();
 
-          // ⏱ freshness filter
           if (!isFresh(pubDate)) continue;
 
           const text = `${title} ${summary}`;
 
-          // 🎯 relevance filter
-          if (!isRelevant(text)) continue;
-
+          // ❗ fallback: allow some items even if not matched
+          const relevant = isRelevant(text);
           const score = getScore(text);
+
+          if (!relevant && score === 0) continue;
 
           console.log("🟡 Processing:", title);
 
