@@ -5,10 +5,10 @@ const parser = new Parser({
   headers: {
     "User-Agent": "Mozilla/5.0"
   },
-  timeout: 10000
+  timeout: 20000
 });
 
-// 🔐 ENV VARIABLES (IMPORTANT FOR RENDER)
+// Supabase (Railway ENV)
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
@@ -24,17 +24,17 @@ const feeds = [
   "https://rss.dw.com/xml/rss-en-all"
 ];
 
-// CACHE (prevents duplicates in runtime)
+// Prevent duplicates in runtime
 const seen = new Set();
 
-// CHECK FRESHNESS (60 min)
+// OPTIONAL: freshness filter (can adjust or disable)
 function isFresh(pubDate) {
-  if (!pubDate) return false;
+  if (!pubDate) return true;
   const diff = (Date.now() - new Date(pubDate)) / 60000;
-  return diff <= 60;
+  return diff <= 180; // 3 hours (less strict = more news)
 }
 
-// FILTER KEYWORDS
+// Keyword filter
 function isRelevant(text) {
   const keywords = [
     "war","attack","airstrike","missile","drone","explosion",
@@ -46,7 +46,7 @@ function isRelevant(text) {
   return keywords.some(k => text.includes(k));
 }
 
-// SCORE SYSTEM
+// Score system
 function getScore(text) {
   const high = ["war","missile","airstrike","explosion","invasion"];
   const mid = ["attack","drone","military","battle","strike"];
@@ -60,13 +60,15 @@ function getScore(text) {
   return score;
 }
 
-// FETCH FUNCTION
+// FETCH NEWS
 async function fetchNews() {
-  console.log("Scanning feeds...");
+  console.log("\n🔄 Scanning feeds...");
 
   for (const url of feeds) {
     try {
       const feed = await parser.parseURL(url);
+
+      console.log("✅ Feed loaded:", url);
 
       for (const item of feed.items) {
         const title = item.title || "";
@@ -79,14 +81,13 @@ async function fetchNews() {
         if (seen.has(key)) continue;
         seen.add(key);
 
-        if (!isFresh(pubDate)) continue;
-
         const text = `${title} ${summary}`;
 
+        // (TEMP SAFER MODE - NOT TOO STRICT)
+        if (!isFresh(pubDate)) continue;
         if (!isRelevant(text)) continue;
 
         const score = getScore(text);
-        if (score < 1) continue;
 
         const { error } = await supabase
           .from("news")
@@ -96,24 +97,27 @@ async function fetchNews() {
               summary,
               link,
               source: url,
-              timestamp: new Date(pubDate),
+              timestamp: pubDate ? new Date(pubDate) : new Date(),
               category: score >= 6 ? "live" : "recent",
               score
             },
             { onConflict: "link" }
           );
 
-        if (!error) {
+        if (error) {
+          console.log("❌ Supabase error:", error.message);
+        } else {
           console.log("📰 Saved:", title);
         }
       }
     } catch (e) {
-      console.log("Feed failed:", url);
+      console.log("❌ Feed failed:", url);
+      console.log("Reason:", e.message);
     }
   }
 }
 
-// LOOP CONTROL (safe)
+// LOOP CONTROL
 let running = false;
 
 async function loop() {
@@ -128,5 +132,6 @@ async function loop() {
 }
 
 // START
+console.log("🚀 News worker started...");
 loop();
 setInterval(loop, 30000);
