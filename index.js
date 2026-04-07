@@ -10,8 +10,8 @@ const parser = new Parser({
 
 // 🔐 ENV VARIABLES (IMPORTANT FOR RENDER)
 const supabase = createClient(
-  process.env.https://hagnvxaocuibflbsyxbx.supabase.co,
-  process.env.sb_publishable_Pmp7dQ7q19fLvkoJqrDM-A_l7Vx78fX
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_KEY
 );
 
 // RSS FEEDS
