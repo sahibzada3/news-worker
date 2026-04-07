@@ -8,7 +8,7 @@ const parser = new Parser({
   timeout: 20000
 });
 
-// Supabase (Railway ENV)
+// Supabase
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
@@ -24,7 +24,7 @@ const feeds = [
   "https://rss.dw.com/xml/rss-en-all"
 ];
 
-// Prevent duplicates
+// Prevent duplicates per runtime
 const seen = new Set();
 
 async function fetchNews() {
@@ -34,21 +34,29 @@ async function fetchNews() {
     try {
       const feed = await parser.parseURL(url);
 
-      console.log("✅ Feed loaded:", url);
+      if (!feed?.items?.length) {
+        console.log("⚠️ No items found:", url);
+        continue;
+      }
+
+      console.log(`✅ Feed loaded: ${url} | Items: ${feed.items.length}`);
 
       for (const item of feed.items) {
-        const title = item.title || "";
-        const summary = item.contentSnippet || "";
-        const link = item.link || "";
-        const pubDate = item.pubDate || new Date().toISOString();
+        const title = item.title?.trim();
+        const summary = item.contentSnippet?.trim() || item.content?.slice(0, 300) || "";
+        const link = item.link?.trim();
+        const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
 
-        const key = item.guid || link || title;
+        if (!title || !link) continue;
 
-        // prevent duplicates only
+        const key = item.guid || link;
+
         if (seen.has(key)) continue;
         seen.add(key);
 
-        const { error } = await supabase
+        console.log("🟡 Processing:", title);
+
+        const { data, error } = await supabase
           .from("news")
           .upsert(
             {
@@ -56,7 +64,7 @@ async function fetchNews() {
               summary,
               link,
               source: url,
-              timestamp: new Date(pubDate)
+              timestamp: pubDate.toISOString()
             },
             { onConflict: "link" }
           );
@@ -83,6 +91,8 @@ async function loop() {
 
   try {
     await fetchNews();
+  } catch (err) {
+    console.log("❌ Loop error:", err.message);
   } finally {
     running = false;
   }
