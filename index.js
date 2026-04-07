@@ -26,7 +26,7 @@ const seen = new Set();
 
 async function fetchNews() {
   console.log("\n🔄 Scanning feeds...");
-
+console.log("TEST LOOP ACTIVE");
   for (const url of feeds) {
     try {
       const feed = await parser.parseURL(url);
