@@ -86,7 +86,7 @@ async function fetchNews() {
         if (!isRelevant(text)) continue;
 
         const score = getScore(text);
-        if (score < 3) continue;
+        if (score < 1) continue;
 
         const { error } = await supabase
           .from("news")
