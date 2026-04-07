@@ -2,9 +2,7 @@ import Parser from "rss-parser";
 import { createClient } from "@supabase/supabase-js";
 
 const parser = new Parser({
-  headers: {
-    "User-Agent": "Mozilla/5.0"
-  },
+  headers: { "User-Agent": "Mozilla/5.0" },
   timeout: 20000
 });
 
@@ -24,7 +22,6 @@ const feeds = [
   "https://rss.dw.com/xml/rss-en-all"
 ];
 
-// Prevent duplicates per runtime
 const seen = new Set();
 
 async function fetchNews() {
@@ -34,18 +31,17 @@ async function fetchNews() {
     try {
       const feed = await parser.parseURL(url);
 
-      if (!feed?.items?.length) {
-        console.log("⚠️ No items found:", url);
-        continue;
-      }
+      console.log(`✅ Feed loaded: ${url} | Items: ${feed.items?.length || 0}`);
 
-      console.log(`✅ Feed loaded: ${url} | Items: ${feed.items.length}`);
+      if (!feed.items?.length) continue;
 
       for (const item of feed.items) {
         const title = item.title?.trim();
-        const summary = item.contentSnippet?.trim() || item.content?.slice(0, 300) || "";
+        const summary =
+          item.contentSnippet?.trim() ||
+          item.content?.slice(0, 300) ||
+          "";
         const link = item.link?.trim();
-        const pubDate = item.pubDate ? new Date(item.pubDate) : new Date();
 
         if (!title || !link) continue;
 
@@ -56,7 +52,7 @@ async function fetchNews() {
 
         console.log("🟡 Processing:", title);
 
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from("news")
           .upsert(
             {
@@ -64,7 +60,7 @@ async function fetchNews() {
               summary,
               link,
               source: url,
-              timestamp: pubDate.toISOString()
+              timestamp: new Date(item.pubDate || Date.now()).toISOString()
             },
             { onConflict: "link" }
           );
@@ -91,14 +87,13 @@ async function loop() {
 
   try {
     await fetchNews();
-  } catch (err) {
-    console.log("❌ Loop error:", err.message);
+  } catch (e) {
+    console.log("❌ Loop error:", e.message);
   } finally {
     running = false;
   }
 }
 
-// START
 console.log("🚀 News worker started...");
 loop();
 setInterval(loop, 30000);
