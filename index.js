@@ -8,7 +8,7 @@ const parser = new Parser({
   timeout: 20000
 });
 
-// Supabase client
+// Supabase client (Railway ENV)
 const supabase = createClient(
   process.env.SUPABASE_URL,
   process.env.SUPABASE_KEY
@@ -24,6 +24,38 @@ const feeds = [
   "https://rss.dw.com/xml/rss-en-all"
 ];
 
+// ⏱ ONLY KEEP NEWS FROM LAST 60 MINUTES
+function isFresh(pubDate) {
+  const diff = (Date.now() - new Date(pubDate)) / 60000;
+  return diff <= 60;
+}
+
+// 🎯 KEYWORD FILTER (balanced, not too strict)
+function isRelevant(text) {
+  const keywords = [
+    "war","attack","strike","missile","drone","explosion",
+    "military","conflict","invasion","battle",
+    "gaza","israel","iran","ukraine","russia","syria"
+  ];
+
+  text = text.toLowerCase();
+  return keywords.some(k => text.includes(k));
+}
+
+// 📊 SCORING SYSTEM
+function getScore(text) {
+  const high = ["war","missile","airstrike","invasion","explosion"];
+  const mid = ["attack","drone","strike","military","battle"];
+
+  let score = 0;
+  text = text.toLowerCase();
+
+  high.forEach(w => { if (text.includes(w)) score += 5; });
+  mid.forEach(w => { if (text.includes(w)) score += 2; });
+
+  return score;
+}
+
 // MAIN FETCH FUNCTION
 async function fetchNews() {
   console.log("\n🔄 Scanning feeds...");
@@ -31,7 +63,6 @@ async function fetchNews() {
   for (const url of feeds) {
     try {
       const feed = await parser.parseURL(url);
-
       const items = feed?.items || [];
 
       console.log(`✅ Feed loaded: ${url} | Items: ${items.length}`);
@@ -46,6 +77,16 @@ async function fetchNews() {
 
           const pubDate = item.pubDate || new Date().toISOString();
 
+          // ⏱ freshness filter
+          if (!isFresh(pubDate)) continue;
+
+          const text = `${title} ${summary}`;
+
+          // 🎯 relevance filter
+          if (!isRelevant(text)) continue;
+
+          const score = getScore(text);
+
           console.log("🟡 Processing:", title);
 
           const { error } = await supabase
@@ -56,7 +97,8 @@ async function fetchNews() {
                 summary,
                 link,
                 source: url,
-                timestamp: new Date(pubDate)
+                timestamp: new Date(pubDate),
+                score
               },
               {
                 onConflict: "link"
@@ -98,7 +140,7 @@ async function loop() {
   }
 }
 
-// START WORKER
+// START
 console.log("🚀 News worker started...");
 loop();
 setInterval(loop, 30000);
