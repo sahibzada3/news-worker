@@ -21,6 +21,7 @@ const feeds = [
   "https://feeds.bbci.co.uk/news/world/rss.xml",
   "https://www.aljazeera.com/xml/rss/all.xml",
   "https://www.aljazeera.com/xml/rss/middleeast.xml",
+  "https://www.telegraph.co.uk/rss.xml",
   "https://www.theguardian.com/world/rss",
   "https://rss.dw.com/xml/rss-en-all"
 ];
