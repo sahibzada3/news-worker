@@ -37,7 +37,7 @@ function isRelevant(text) {
   const keywords = [
     "war","attack","strike","missile","drone","explosion",
     "military","conflict","invasion","battle",
-    "gaza","israel","iran","ukraine","russia","syria",
+    "gaza","israel","iran","ukraine","russia","syria","iraq","middle east","houthis","hamas","lebanon","hezbollah","IDF","mossad","CIA",
     "ceasefire","troops","defense","army"
   ];
 
