@@ -1,4 +1,6 @@
 import Parser from "rss-parser";
+import axios from "axios";
+import * as cheerio from "cheerio";
 import { createClient } from "@supabase/supabase-js";
 
 const parser = new Parser({
@@ -26,18 +28,18 @@ const feeds = [
   "https://rss.dw.com/xml/rss-en-all"
 ];
 
-// ⏱ KEEP NEWS FROM LAST 3 HOURS (IMPORTANT FIX)
+// ⏱ KEEP NEWS FROM LAST 3 HOURS
 function isFresh(pubDate) {
   const diff = (Date.now() - new Date(pubDate)) / 60000;
   return diff <= 180;
 }
 
-// 🎯 RELAXED FILTER (important fix)
+// 🎯 FILTER
 function isRelevant(text) {
   const keywords = [
     "war","attack","strike","missile","drone","explosion",
     "military","conflict","invasion","battle",
-    "gaza","israel","iran","ukraine","russia","syria","iraq","middle east","houthis","hamas","lebanon","hezbollah","IDF","mossad","CIA",
+    "gaza","israel","iran","ukraine","russia","syria","iraq","middle east","houthis","hamas","lebanon","hezbollah",
     "ceasefire","troops","defense","army"
   ];
 
@@ -59,6 +61,52 @@ function getScore(text) {
   return score;
 }
 
+// 🧠 ARTICLE EXTRACTION
+async function extractArticle(url) {
+  try {
+    const res = await axios.get(url, {
+      headers: {
+        "User-Agent": "Mozilla/5.0"
+      },
+      timeout: 15000
+    });
+
+    const $ = cheerio.load(res.data);
+
+    // Remove junk
+    $("script, style, nav, footer, header").remove();
+
+    let text = "";
+
+    // Try article tag first
+    $("article p").each((i, el) => {
+      text += $(el).text() + "\n";
+    });
+
+    // Fallback if not enough
+    if (text.length < 300) {
+      $("p").each((i, el) => {
+        text += $(el).text() + "\n";
+      });
+    }
+
+    // Extract image
+    let image =
+      $("meta[property='og:image']").attr("content") ||
+      $("img").first().attr("src") ||
+      null;
+
+    return {
+      content: text.trim().slice(0, 5000),
+      image
+    };
+
+  } catch (err) {
+    console.log("❌ Scrape failed:", url);
+    return null;
+  }
+}
+
 // MAIN FETCH
 async function fetchNews() {
   console.log("\n🔄 Scanning feeds...");
@@ -73,7 +121,7 @@ async function fetchNews() {
       for (const item of items) {
         try {
           const title = item.title || "";
-          const summary = item.contentSnippet || item.summary || "";
+          const snippet = item.contentSnippet || item.summary || "";
           const link = item.link;
 
           if (!link) continue;
@@ -82,9 +130,8 @@ async function fetchNews() {
 
           if (!isFresh(pubDate)) continue;
 
-          const text = `${title} ${summary}`;
+          const text = `${title} ${snippet}`;
 
-          // ❗ fallback: allow some items even if not matched
           const relevant = isRelevant(text);
           const score = getScore(text);
 
@@ -92,12 +139,23 @@ async function fetchNews() {
 
           console.log("🟡 Processing:", title);
 
+          // 🔥 NEW: Extract full article
+          let articleData = await extractArticle(link);
+
+          let fullContent = articleData?.content || snippet;
+          let image =
+            articleData?.image ||
+            item.enclosure?.url ||
+            null;
+
           const { error } = await supabase
             .from("news")
             .upsert(
               {
                 title,
-                summary,
+                summary: snippet,
+                content: fullContent, // ✅ IMPORTANT
+                image,                // ✅ NEW
                 link,
                 source: url,
                 timestamp: new Date(pubDate),
@@ -146,4 +204,6 @@ async function loop() {
 // START
 console.log("🚀 News worker started...");
 loop();
-setInterval(loop, 30000);
+
+// ⚠️ IMPORTANT: Increase interval (avoid blocks)
+setInterval(loop, 180000); // 3 minutes
