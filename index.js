@@ -19,7 +19,6 @@ const supabase = createClient(
 // RSS FEEDS
 const feeds = [
   "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml",
-  "https://rss.nytimes.com/services/xml/rss/nyt/MiddleEast.xml",
   "https://feeds.bbci.co.uk/news/world/rss.xml",
   "https://www.aljazeera.com/xml/rss/all.xml",
   "https://www.aljazeera.com/xml/rss/middleeast.xml",
