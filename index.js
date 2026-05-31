@@ -10,12 +10,6 @@ const parser = new Parser({
   timeout: 20000
 });
 
-// Supabase client
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_KEY
-);
-
 // RSS FEEDS
 const feeds = [
   "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml",
@@ -36,26 +30,68 @@ function isFresh(pubDate) {
 // 🎯 FILTER
 function isRelevant(text) {
   const keywords = [
-    "war","attack","strike","missile","drone","explosion",
-    "military","conflict","invasion","battle",
-    "gaza","israel","iran","ukraine","russia","syria","iraq","middle east","houthis","hamas","lebanon","hezbollah",
-    "ceasefire","troops","defense","army"
+    "war",
+    "attack",
+    "strike",
+    "missile",
+    "drone",
+    "explosion",
+    "military",
+    "conflict",
+    "invasion",
+    "battle",
+    "gaza",
+    "israel",
+    "iran",
+    "ukraine",
+    "russia",
+    "syria",
+    "iraq",
+    "middle east",
+    "houthis",
+    "hamas",
+    "lebanon",
+    "hezbollah",
+    "ceasefire",
+    "troops",
+    "defense",
+    "army"
   ];
 
   text = text.toLowerCase();
-  return keywords.some(k => text.includes(k));
+
+  return keywords.some((k) => text.includes(k));
 }
 
 // 📊 SCORING
 function getScore(text) {
-  const high = ["war","missile","airstrike","invasion","explosion"];
-  const mid = ["attack","drone","strike","military","battle"];
+  const high = [
+    "war",
+    "missile",
+    "airstrike",
+    "invasion",
+    "explosion"
+  ];
+
+  const mid = [
+    "attack",
+    "drone",
+    "strike",
+    "military",
+    "battle"
+  ];
 
   let score = 0;
+
   text = text.toLowerCase();
 
-  high.forEach(w => { if (text.includes(w)) score += 5; });
-  mid.forEach(w => { if (text.includes(w)) score += 2; });
+  high.forEach((w) => {
+    if (text.includes(w)) score += 5;
+  });
+
+  mid.forEach((w) => {
+    if (text.includes(w)) score += 2;
+  });
 
   return score;
 }
@@ -72,25 +108,24 @@ async function extractArticle(url) {
 
     const $ = cheerio.load(res.data);
 
-    // Remove junk
     $("script, style, nav, footer, header").remove();
 
     let text = "";
 
-    // Try article tag first
+    // Main article paragraphs
     $("article p").each((i, el) => {
       text += $(el).text() + "\n";
     });
 
-    // Fallback if not enough
+    // Fallback
     if (text.length < 300) {
       $("p").each((i, el) => {
         text += $(el).text() + "\n";
       });
     }
 
-    // Extract image
-    let image =
+    // Image extraction
+    const image =
       $("meta[property='og:image']").attr("content") ||
       $("img").first().attr("src") ||
       null;
@@ -106,43 +141,66 @@ async function extractArticle(url) {
   }
 }
 
-// MAIN FETCH
-async function fetchNews() {
-  console.log("\n🔄 Scanning feeds...");
+// MAIN FETCH FUNCTION
+async function fetchNews(env) {
+
+  console.log("🔄 Scanning feeds...");
+
+  // Supabase Client
+  const supabase = createClient(
+    env.SUPABASE_URL,
+    env.SUPABASE_KEY
+  );
 
   for (const url of feeds) {
+
     try {
+
       const feed = await parser.parseURL(url);
+
       const items = feed?.items || [];
 
       console.log(`✅ Feed loaded: ${url} | Items: ${items.length}`);
 
       for (const item of items) {
+
         try {
+
           const title = item.title || "";
-          const snippet = item.contentSnippet || item.summary || "";
+
+          const snippet =
+            item.contentSnippet ||
+            item.summary ||
+            "";
+
           const link = item.link;
 
           if (!link) continue;
 
-          const pubDate = item.pubDate || new Date().toISOString();
+          const pubDate =
+            item.pubDate ||
+            new Date().toISOString();
 
           if (!isFresh(pubDate)) continue;
 
           const text = `${title} ${snippet}`;
 
           const relevant = isRelevant(text);
+
           const score = getScore(text);
 
           if (!relevant && score === 0) continue;
 
           console.log("🟡 Processing:", title);
 
-          // 🔥 NEW: Extract full article
-          let articleData = await extractArticle(link);
+          // Extract article
+          const articleData = await extractArticle(link);
 
-          let fullContent = articleData?.content || snippet;
-          let image =
+          const fullContent =
+            articleData?.content ||
+            snippet;
+
+          const image =
             articleData?.image ||
             item.enclosure?.url ||
             null;
@@ -153,8 +211,8 @@ async function fetchNews() {
               {
                 title,
                 summary: snippet,
-                content: fullContent, // ✅ IMPORTANT
-                image,                // ✅ NEW
+                content: fullContent,
+                image,
                 link,
                 source: url,
                 timestamp: new Date(pubDate),
@@ -166,43 +224,62 @@ async function fetchNews() {
             );
 
           if (error) {
-            console.log("❌ Supabase error:", error.message);
+
+            console.log(
+              "❌ Supabase error:",
+              error.message
+            );
+
           } else {
+
             console.log("📰 Saved:", title);
+
           }
 
         } catch (itemErr) {
-          console.log("❌ Item error:", itemErr.message);
+
+          console.log(
+            "❌ Item error:",
+            itemErr.message
+          );
+
         }
       }
 
     } catch (feedErr) {
+
       console.log("❌ Feed failed:", url);
-      console.log("Reason:", feedErr.message);
+
+      console.log(
+        "Reason:",
+        feedErr.message
+      );
+
     }
   }
+
+  console.log("✅ News scan completed");
 }
 
-// LOOP CONTROL
-let running = false;
+// CLOUDLFARE WORKER
+export default {
 
-async function loop() {
-  if (running) return;
+  // Runs every cron trigger
+  async scheduled(event, env, ctx) {
 
-  running = true;
+    console.log("🚀 Scheduled worker started");
 
-  try {
-    await fetchNews();
-  } catch (err) {
-    console.log("❌ Loop error:", err.message);
-  } finally {
-    running = false;
+    await fetchNews(env);
+
+  },
+
+  // Optional browser test
+  async fetch(request, env, ctx) {
+
+    return new Response(
+      "News worker is running successfully."
+    );
+
   }
-}
 
-// START
-console.log("🚀 News worker started...");
-loop();
-
-// ⚠️ IMPORTANT: Increase interval (avoid blocks)
-setInterval(loop, 180000); // 3 minutes
+};
